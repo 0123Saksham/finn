@@ -29,7 +29,7 @@ def _from_yahoo(symbols: list[str]) -> dict[str, list[dict[str, Any]]]:
     return out
 
 
-def history(symbols: list[str], max_age_h: float = 3) -> dict[str, list[dict[str, Any]]]:
+def history(symbols: list[str], max_age_h: float = 3, swr: bool = False) -> dict[str, list[dict[str, Any]]]:
     def _load():
         data = {}
         try:
@@ -50,7 +50,7 @@ def history(symbols: list[str], max_age_h: float = 3) -> dict[str, list[dict[str
         return data
 
     key = "prices/" + "_".join(sorted(symbols))[:120]
-    return cache_json(key, _load, max_age_h=max_age_h)
+    return cache_json(key, _load, max_age_h=max_age_h, swr=swr)
 
 
 def stats(rows: list[dict[str, Any]]) -> dict[str, Any]:

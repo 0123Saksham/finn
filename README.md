@@ -67,7 +67,7 @@ flowchart LR
   K & A & J --> UI["React PWA (mobile-first)<br/>served by the same FastAPI process"]
 ```
 
-One container: FastAPI serves the API and the built PWA, and a background thread refreshes feeds every 20 minutes. State is JSON on disk (a content-addressed cache), which is enough for one investor and keeps the deployment to a single `docker run`.
+One container: FastAPI serves the API and the built PWA, and a background thread refreshes the feeds (every 20 minutes while companies file, hourly otherwise). State is JSON on disk (a content-addressed cache), which is enough for one investor and keeps the deployment to a single `docker run`. It is hosted on Render's free tier from `render.yaml`. Free instances sleep after 15 idle minutes, so the app pings its own public URL every 10 minutes (`FINN_KEEPALIVE=1`) to avoid a cold start of about a minute for whoever opens it next.
 
 ### Model routing: the expensive model only where reasoning changes the answer
 
@@ -82,6 +82,20 @@ One container: FastAPI serves the API and the built PWA, and a background thread
 | Ratios, growth, cash conversion, red flags | **Plain Python** | Deterministic, testable, free. |
 
 - **Caching:** every model call is content-addressed on disk (prompt + document hash). Filings never change, so a filing is read once, ever. The repo ships the cache, so a reviewer's first open costs **zero calls**.
+- **No request ever waits on a data source.** Source data (Screener statements, EOD prices) is served *stale-while-revalidate*: a page gets the last good copy at once and the refresh happens in the background, once per key (concurrent requests collapse into one fetch), with a 10-minute back-off if a source is failing. Parsed JSON is held in memory keyed on file mtime, because parsing was 60-75% of request time.
+- **Polling matches when companies actually file.** NSE's official RSS (one request covers every company) is checked every cycle. Screener's per-company lists are only a backfill: every 2 h on weekdays 08:00-23:00 IST, every 6 h otherwise, and the cycle itself slows from 20 to 60 minutes at night and on weekends. This makes about 320 requests on a weekday, against about 1,480 before.
+- **Follow-up questions don't re-read documents.** Each company gets a BM25 index (about 500 pages of transcripts plus the annual report) built once and kept in memory, with stopwords dropped so "what did management say about…" doesn't outweigh the actual subject.
+
+**Measured speed-ups** (local, same data; a 0.1-CPU free host stretches the "before" column about 10×):
+
+| | Before | After |
+|---|---|---|
+| Open Brief when cached prices are stale (e.g. right after a deploy) | 16 s (waited on Yahoo) | 0.04 s |
+| Open Holdings when company data is stale | ~27 s (18 polite Screener fetches) | 0.12 s |
+| Follow-up question, retrieval step | 150-340 ms | 1.5 ms after the first question (query-term coverage of the cited pages equal or better on 8 test questions) |
+| Background refresh cycle when nothing is new | 26 s | 0.2 s (RSS only) |
+
+The PWA works offline: the app shell and fingerprinted assets are cached, and the last brief, holdings and finished dossiers open without a network. Data requests always try the network first.
 - **Quota-aware model pools:** Gemini's free tier has *per-model* daily quotas (Flash is about 20 requests a day). Each tier is a pool of interchangeable models (`gemini-3.5-flash` → `gemini-3-flash-preview` → `gemini-flash-latest`). When one model's daily quota is exhausted FINN moves along the pool, and only when the pool is dry does it degrade a tier, so the app never just fails. Fallback models get *low* thinking: at high thinking one of them spent 64k tokens and 3 minutes on a judgement the primary makes in 8k.
 
 **Measured cost** (this build, Gemini free tier):
@@ -137,6 +151,8 @@ uvicorn backend.app:app --port 7860                 # open http://localhost:7860
 Without a key FINN still runs in numbers-only mode: digest, alerts, financial analysis and rule flags all work, and model-written parts are skipped.
 
 Docker: `docker build -t finn . && docker run -p 7860:7860 -e GEMINI_API_KEY=... finn`
+
+Deploy your own: [one click on Render](https://render.com/deploy?repo=https://github.com/0123Saksham/finn) (free plan; it asks for `GEMINI_API_KEY`).
 
 Config lives in `backend/config.py`: the portfolio (18 NSE names from ₹18 lakh Cr Reliance down to ₹15k Cr KPIT, banks to defence to renewables), default alert rules, and the model pools (`FINN_MODEL_DEEP=gemini-3.1-pro-preview` upgrades only the judgement step on a paid key).
 

@@ -64,7 +64,7 @@ def portfolio():
     for p in config.PORTFOLIO:
         s = p["symbol"]
         try:
-            c = screener.fetch_company(s, max_age_h=48)
+            c = screener.fetch_company(s, max_age_h=48, swr=True)
             name, mcap = c["name"], c["ratios"].get("Market Cap")
         except Exception:  # noqa: BLE001
             name, mcap = s, None
@@ -82,7 +82,7 @@ def portfolio():
 def company(symbol: str):
     s = symbol.upper()
     try:
-        c = screener.fetch_company(s, max_age_h=24)
+        c = screener.fetch_company(s, max_age_h=24, swr=True)
     except Exception as e:  # noqa: BLE001
         raise HTTPException(404, f"No data for {s}: {e}")
     store = feed.load_store()
@@ -91,7 +91,7 @@ def company(symbol: str):
     if not px:
         try:
             from .sources import prices
-            rows = prices.history([s], max_age_h=6).get(s, [])
+            rows = prices.history([s], max_age_h=6, swr=True).get(s, [])
             px = prices.stats(rows) if rows else None
         except Exception:  # noqa: BLE001
             px = None
@@ -174,31 +174,61 @@ def demo():
 # ----------------------------------------------------------------------------- scheduler
 
 def _scheduler():
-    time.sleep(5)
+    # Let the first page load finish before the refresh competes for a small CPU.
+    time.sleep(20)
     while True:
         try:
             feed.refresh()
         except Exception:  # noqa: BLE001
             log.exception("scheduled refresh failed")
-        time.sleep(config.REFRESH_MINUTES * 60)
+        # Every 20 min while companies file; hourly nights and weekends.
+        time.sleep((config.REFRESH_MINUTES if feed.active_window() else 60) * 60)
+
+
+def _keepalive(url: str):
+    """Free hosts sleep after ~15 idle minutes, and waking takes close to a minute. A light
+    self-ping through the public URL keeps the brief instant for whoever opens it next."""
+    import httpx
+    while True:
+        time.sleep(10 * 60)
+        try:
+            httpx.get(url.rstrip("/") + "/api/health", timeout=20)
+        except Exception:  # noqa: BLE001
+            pass
 
 
 @app.on_event("startup")
 def _start():
     import os
     if os.getenv("FINN_NO_SCHEDULER") != "1":
-        threading.Thread(target=_scheduler, daemon=True).start()
+        threading.Thread(target=_scheduler, daemon=True, name="scheduler").start()
+    url = os.getenv("FINN_PUBLIC_URL") or os.getenv("RENDER_EXTERNAL_URL")
+    if os.getenv("FINN_KEEPALIVE") == "1" and url:
+        threading.Thread(target=_keepalive, args=(url,), daemon=True, name="keepalive").start()
 
 
 # ----------------------------------------------------------------------------- static PWA
 
 DIST = ROOT / "frontend" / "dist"
+
+
+class _Immutable(StaticFiles):
+    """Vite fingerprints asset filenames, so they can be cached for a year with no revalidation."""
+    async def get_response(self, path, scope):
+        r = await super().get_response(path, scope)
+        if r.status_code == 200:
+            r.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return r
+
+
 if DIST.exists():
-    app.mount("/assets", StaticFiles(directory=DIST / "assets"), name="assets")
+    app.mount("/assets", _Immutable(directory=DIST / "assets"), name="assets")
 
     @app.get("/{path:path}")
     def spa(path: str):
+        if path.startswith("api/"):
+            raise HTTPException(404, "unknown endpoint")
         f = DIST / path
         if path and f.is_file():
-            return FileResponse(f)
-        return FileResponse(DIST / "index.html")
+            return FileResponse(f, headers={"Cache-Control": "no-cache"} if path == "sw.js" else None)
+        return FileResponse(DIST / "index.html", headers={"Cache-Control": "no-cache"})

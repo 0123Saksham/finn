@@ -13,3 +13,5 @@ services:
         sync: false            # Render asks for it during setup; never stored in the repo
       - key: PORT
         value: "7860"
+      - key: FINN_KEEPALIVE      # self-ping every 10 min so a reviewer never waits ~1 min for a cold start
+        value: "1"

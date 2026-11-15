@@ -104,7 +104,7 @@ def call(tier: str, prompt: str, *, system: str | None = None, pdf: bytes | None
          as_json: bool = True, temperature: float = 0.1, meter: list | None = None,
          think: bool = False, cache: bool = True) -> Any:
     model = _pool(tier)[0] if _pool(tier) else MODELS[tier]
-    key = "llm/" + h("|".join([tier, system or "", prompt, h(pdf.hex()[:20000] + str(len(pdf))) if pdf else "", str(as_json)]))
+    key = "llm/" + h("|".join([tier, system or "", prompt, h(pdf[:10000].hex() + str(len(pdf))) if pdf else "", str(as_json)]))
     if cache:
         hit = read_cache(key)
         if hit is not None:

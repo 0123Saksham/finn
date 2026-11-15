@@ -9,6 +9,7 @@ stays grounded in primary data.
 from __future__ import annotations
 
 import re
+import threading
 import time
 from datetime import datetime
 from typing import Any
@@ -19,14 +20,16 @@ from ..util import http_get, cache_json
 
 BASE = "https://www.screener.in"
 _last_call = [0.0]
+_rate_lock = threading.Lock()
 
 
 def _polite_get(url: str) -> str:
-    # Be a good citizen: at most ~1 request / 1.5s to screener.
-    wait = 1.5 - (time.time() - _last_call[0])
-    if wait > 0:
-        time.sleep(wait)
-    _last_call[0] = time.time()
+    # Be a good citizen: at most ~1 request / 1.5s to screener, across all threads.
+    with _rate_lock:
+        wait = 1.5 - (time.time() - _last_call[0])
+        if wait > 0:
+            time.sleep(wait)
+        _last_call[0] = time.time()
     return http_get(url).text
 
 
@@ -133,8 +136,8 @@ def parse_announcements_html(html: str) -> list[dict[str, Any]]:
     return out
 
 
-def fetch_company(symbol: str, max_age_h: float = 6) -> dict[str, Any]:
-    """Parse the company page (consolidated, falling back to standalone)."""
+def fetch_company(symbol: str, max_age_h: float = 6, swr: bool = False) -> dict[str, Any]:
+    """Parse the company page (consolidated, falling back to standalone). Read-only result."""
     symbol = symbol.upper().strip()
 
     def _load():
@@ -179,7 +182,7 @@ def fetch_company(symbol: str, max_age_h: float = 6) -> dict[str, Any]:
             }
         raise ValueError(f"Screener has no data for '{symbol}' ({last_err or 'empty tables'})")
 
-    return cache_json(f"screener/{symbol}", _load, max_age_h=max_age_h)
+    return cache_json(f"screener/{symbol}", _load, max_age_h=max_age_h, swr=swr)
 
 
 def fetch_recent_announcements(company_id: str) -> list[dict[str, Any]]:

@@ -11,9 +11,12 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import re
+import sys
 import threading
 import time
+from collections import Counter, OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
@@ -293,8 +296,8 @@ def _run(job: Job):
 
 # ----------------------------------------------------------------------------- follow-up Q&A
 
-def _chunks(symbol: str) -> list[dict]:
-    res = read_cache(f"research/{symbol}")
+def _chunks(symbol: str, res: dict | None = None) -> list[dict]:
+    res = res or read_cache(f"research/{symbol}")
     if not res:
         return []
     out = []
@@ -312,25 +315,60 @@ def _chunks(symbol: str) -> list[dict]:
     return out
 
 
-def _bm25(query: str, docs: list[dict], k: int = 6) -> list[dict]:
-    import math
-    tok = lambda s: re.findall(r"[a-z0-9]+", s.lower())  # noqa: E731
-    q = [t for t in tok(query) if len(t) > 2]
-    toks = [tok(d["text"]) for d in docs]
-    N = len(docs) or 1
-    avg = sum(len(t) for t in toks) / N
-    df = {w: sum(1 for t in toks if w in t) for w in set(q)}
+# Ask retrieval: a BM25 index per company, built once from the dossier's own documents and
+# kept in memory (LRU), so a follow-up question costs a dictionary lookup, not a re-read of
+# ~500 pages. Rebuilt automatically when the dossier is regenerated.
+_TOKEN = re.compile(r"[a-z0-9]+")
+STOP = frozenset("""a an the and or of to in on for with from by at as is are was were be been being it its this that
+these those what which who whom how why when where did does do done say said says tell told about any much many there their
+they them we our you your has have had will would can could should may might than then into over under also just please
+give show me company management""".split())
+_INDEX: "OrderedDict[str, tuple[str, dict]]" = OrderedDict()
+_INDEX_LOCK = threading.Lock()
+_INDEX_MAX = 4
+
+
+def _tok(s: str) -> list[str]:
+    return [sys.intern(t) for t in _TOKEN.findall(s.lower())]
+
+
+def _index(symbol: str, res: dict) -> dict:
+    stamp = str(res.get("generated") or res.get("elapsed_s") or "")
+    with _INDEX_LOCK:
+        hit = _INDEX.get(symbol)
+        if hit and hit[0] == stamp:
+            _INDEX.move_to_end(symbol)
+            return hit[1]
+    docs = _chunks(symbol, res)
+    tfs = [Counter(_tok(d["text"])) for d in docs]
+    lens = [sum(tf.values()) for tf in tfs]
+    df: Counter = Counter()
+    for tf in tfs:
+        df.update(tf.keys())
+    idx = {"docs": docs, "tfs": tfs, "lens": lens, "df": df, "avg": (sum(lens) / len(lens)) if lens else 1.0}
+    with _INDEX_LOCK:
+        _INDEX[symbol] = (stamp, idx)
+        while len(_INDEX) > _INDEX_MAX:
+            _INDEX.popitem(last=False)
+    return idx
+
+
+def _bm25(query: str, idx: dict, k: int = 6) -> list[dict]:
+    """Okapi BM25 (k1=1.2, b=0.75). Stopwords dropped; short tokens kept if they carry a digit (Q2, H1)."""
+    q = {t for t in _tok(query) if t not in STOP and (len(t) > 2 or any(ch.isdigit() for ch in t))}
+    N, avg, df = len(idx["docs"]) or 1, idx["avg"] or 1.0, idx["df"]
+    idf = {w: math.log(1 + (N - df[w] + .5) / (df[w] + .5)) for w in q if df.get(w)}
     scored = []
-    for d, t in zip(docs, toks):
-        tf = {}
-        for w in t:
-            if w in df:
-                tf[w] = tf.get(w, 0) + 1
-        s = sum(math.log(1 + (N - df[w] + .5) / (df[w] + .5)) * tf[w] * 2.2 / (tf[w] + 1.2 * (.25 + .75 * len(t) / avg))
-                for w in tf)
-        scored.append((s, d))
+    for d, tf, ln in zip(idx["docs"], idx["tfs"], idx["lens"]):
+        s = 0.0
+        for w, wi in idf.items():
+            f = tf.get(w)
+            if f:
+                s += wi * f * 2.2 / (f + 1.2 * (.25 + .75 * ln / avg))
+        if s > 0:
+            scored.append((s, d))
     scored.sort(key=lambda x: -x[0])
-    return [d for s, d in scored[:k] if s > 0]
+    return [d for _, d in scored[:k]]
 
 
 ASK_PROMPT = """Answer the investor's question about {company} using ONLY these excerpts from its own filings.
@@ -348,7 +386,7 @@ def ask(symbol: str, question: str) -> dict[str, Any]:
     if not res:
         return {"answer": "Run the research on this company first — I only answer from its own documents.",
                 "confidence": "low", "sources": []}
-    hits = _bm25(question, _chunks(symbol))
+    hits = _bm25(question, _index(symbol, res))
     if not hits:
         return {"answer": "Nothing in the transcripts or annual report matches that question.", "confidence": "low", "sources": []}
     ctx = "\n\n".join(f"[{h['tag']} p.{h['page']}] ({h['label']})\n{h['text'][:2500]}" for h in hits)

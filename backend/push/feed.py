@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -16,7 +17,12 @@ log = logging.getLogger("finn.feed")
 IST = timezone(timedelta(hours=5, minutes=30))
 STORE_KEY = "store/announcements"
 _lock = threading.Lock()
-STATUS: dict[str, Any] = {"last_refresh": None, "running": False, "log": []}
+STATUS: dict[str, Any] = {"last_refresh": None, "running": False, "log": [], "last_deep_poll": 0.0}
+
+# Tiered polling. NSE's RSS covers every company in one request, so it runs every cycle.
+# Screener's per-company lists (18 requests) are a backfill for anything RSS missed, so
+# they run every 2h while filings actually arrive, and every 6h nights and weekends.
+DEEP_POLL_H = {"active": 2, "quiet": 6}
 
 TIER_MATTERS, TIER_GLANCE = 70, 38
 LABEL = {"results": "Results", "M&A": "M&A", "fund_raise": "Fund raise", "management_change": "People",
@@ -41,7 +47,8 @@ def _ts(s: str | None) -> datetime | None:
 
 
 def load_store() -> dict[str, dict]:
-    return read_cache(STORE_KEY) or {}
+    """Read-only view shared across requests (parsed once per change on disk)."""
+    return read_cache(STORE_KEY, shared=True) or {}
 
 
 def save_store(store: dict[str, dict]) -> None:
@@ -58,6 +65,12 @@ def companies(max_age_h: float = 12) -> dict[str, dict]:
     return out
 
 
+def active_window(t: datetime | None = None) -> bool:
+    """Weekdays 08:00-23:00 IST: when Indian companies file (results land after market hours)."""
+    t = t or now()
+    return t.weekday() < 5 and 8 <= t.hour < 23
+
+
 def _log(msg: str):
     STATUS["log"] = (STATUS["log"] + [f"{now():%H:%M:%S} {msg}"])[-40:]
     log.info(msg)
@@ -71,18 +84,22 @@ def refresh(enrich_days: int = 21, live: bool = True) -> dict[str, Any]:
     meter: list = []
     try:
         comps = companies(max_age_h=12)
-        store = load_store()
+        store = read_cache(STORE_KEY) or {}  # private copy: this is the only writer
         before = len(store)
         fresh: list[dict] = []
+        due_h = DEEP_POLL_H["active" if active_window() else "quiet"]
+        deep = live and time.time() - STATUS["last_deep_poll"] >= due_h * 3600
         for s, c in comps.items():
             anns = c["docs"]["announcements"]
-            if live and c.get("company_id"):
+            if deep and c.get("company_id"):
                 try:
                     anns = screener.fetch_recent_announcements(c["company_id"]) or anns
                 except Exception as e:  # noqa: BLE001
                     _log(f"{s}: screener recent failed ({e})")
             for a in anns:
                 fresh.append({**a, "symbol": s, "source": "BSE via Screener"})
+        if deep:
+            STATUS["last_deep_poll"] = time.time()
         if live:
             names = {nse_rss.norm_name(c["name"]): s for s, c in comps.items()}
             try:
@@ -104,7 +121,8 @@ def refresh(enrich_days: int = 21, live: bool = True) -> dict[str, Any]:
                         it.pop(k, None)
                     new_items.append(it)
         classify.classify_all(new_items, meter=meter)
-        _log(f"ingested {len(new_items)} new filings ({len(store)} total, was {before})")
+        _log(f"ingested {len(new_items)} new filings ({len(store)} total, was {before}; "
+             f"{'RSS + per-company backfill' if deep else 'RSS only'})")
 
         cutoff = now() - timedelta(days=enrich_days)
         todo = [it for it in store.values()
@@ -122,6 +140,10 @@ def refresh(enrich_days: int = 21, live: bool = True) -> dict[str, Any]:
         _log(f"enriched {len(todo)} material filings; LLM: {llm.summarize_meter(meter)}")
         with _lock:
             save_store(store)
+        try:  # keep EOD prices warm so no request ever waits on Yahoo
+            prices.history(config.SYMBOLS, max_age_h=3)
+        except Exception as e:  # noqa: BLE001
+            _log(f"prices refresh failed ({e})")
         STATUS["last_refresh"] = now().isoformat(timespec="seconds")
         STATUS["last_cost"] = llm.summarize_meter(meter)
     finally:
@@ -236,7 +258,8 @@ def digest(hours: float | None = 24, since: str | None = None, rules: dict | Non
 # ----------------------------------------------------------------------------- prices + alerts
 
 def price_history() -> dict[str, list[dict]]:
-    return prices.history(config.SYMBOLS)
+    # Request path: never block on Yahoo. Serve the last copy, revalidate in the background.
+    return prices.history(config.SYMBOLS, swr=True)
 
 
 def price_stats() -> dict[str, dict]:
