@@ -167,5 +167,4 @@ backend/
   pull/               numbers.py (deterministic analysis) · research.py (agent pipeline, judge, ask)
 frontend/src/         Brief · Story · Holdings · Research · Rules · ui (charts, sheet)
 data/cache/           committed cache: filings store, extractions, dossiers
-docs/ai-build-history.md   the Claude Code session this was built in
 ```
