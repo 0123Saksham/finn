@@ -2,7 +2,7 @@
 
 **A mobile-first agent that tells an investor the few things that matter across their portfolio (Push), and checks what management promised against what it delivered (Pull).**
 
-> **Try it on your phone:** `<<DEPLOY_URL>>` (add to home screen; it installs as an app)
+> **Try it on your phone:** **https://finn-ytj8.onrender.com** (add to home screen; it installs as an app)
 > Built for the ENAM AI Engineer Build Challenge, Nov 2026.
 
 | Brief (push) | Said vs done (pull) | Rules |
