@@ -19,4 +19,5 @@ COPY --from=web /web/dist frontend/dist
 RUN chown -R user:user /app
 USER user
 EXPOSE 7860
-CMD ["uvicorn", "backend.app:app", "--host", "0.0.0.0", "--port", "7860", "--proxy-headers"]
+# Hosts like Render inject $PORT; default to 7860 everywhere else.
+CMD ["sh", "-c", "exec uvicorn backend.app:app --host 0.0.0.0 --port ${PORT:-7860} --proxy-headers --forwarded-allow-ips='*'"]
