@@ -1,0 +1,1 @@
+{"model": "gemini-3.5-flash-lite", "usage": {"in": 248, "out": 48}, "output": {"intent": "ask", "company": "INFY", "question": "What did Infosys say about margins?", "window_hours": null, "price_move_pct": null, "volume_multiple": null}, "at": 1794733561.2047586}

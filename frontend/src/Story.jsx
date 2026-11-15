@@ -77,7 +77,7 @@ function Scale({ s }) {
   return <span className="scale">{cr(s.amount_cr, 0)} = {s.pct < 0.1 ? '<0.1' : s.pct}% {s.of}</span>
 }
 
-export function StoryCard({ s, onResearch }) {
+export function StoryCard({ s, onResearch, isNew }) {
   const [open, setOpen] = useState(false)
   const e = s.enrich || {}
   const title =
@@ -91,6 +91,7 @@ export function StoryCard({ s, onResearch }) {
           <span className="sym">{s.symbol}</span>
           <span className={`tag ${s.tier === 'matters' ? 'hot' : 'warm'}`}>{s.label}</span>
           <span>{ago(s.ts)}</span>
+          {isNew && <span className="new">New</span>}
           <span className="grow" />
           {s.px?.chg_pct != null && <Delta v={s.px.chg_pct} />}
         </div>
@@ -120,7 +121,7 @@ export function StoryCard({ s, onResearch }) {
   )
 }
 
-export function GlanceRow({ s, onResearch, onMute }) {
+export function GlanceRow({ s, onResearch, onMute, isNew }) {
   const [open, setOpen] = useState(false)
   const e = s.enrich || {}
   return (
@@ -130,6 +131,7 @@ export function GlanceRow({ s, onResearch, onMute }) {
           <span className="sym">{s.symbol}</span>
           <span className="tag">{s.label}</span>
           <span>{ago(s.ts)}</span>
+          {isNew && <span className="new">New</span>}
           <span className="grow" />
           {s.px?.chg_pct != null && <Delta v={s.px.chg_pct} />}
         </div>

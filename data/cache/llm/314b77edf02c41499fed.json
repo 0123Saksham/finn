@@ -1,0 +1,1 @@
+{"model": "gemini-3.5-flash-lite", "usage": {"in": 246, "out": 55}, "output": {"intent": "research", "company": "Infosys", "question": null, "window_hours": null, "price_move_pct": null, "volume_multiple": null}, "at": 1794733472.7949295}

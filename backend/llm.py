@@ -75,7 +75,7 @@ def _record(tier: str, model: str, usage: dict, meter: list | None, cached: bool
     pin, pout = config.PRICES[tier]
     cost = (usage.get("in", 0) * pin + usage.get("out", 0) * pout) / 1e6
     row = {"tier": tier, "model": model, "in": usage.get("in", 0), "out": usage.get("out", 0),
-           "usd": 0.0 if cached else round(cost, 6), "cached": cached}
+           "usd": 0.0 if cached else round(cost, 6), "usd_build": round(cost, 6), "cached": cached}
     if meter is not None:
         meter.append(row)
     with _lock:
@@ -127,7 +127,11 @@ def call(tier: str, prompt: str, *, system: str | None = None, pdf: bytes | None
         cfg["thinking_config"] = types.ThinkingConfig(thinking_level=level)
 
     last_err: Exception | None = None
-    for model in _pool(tier):
+    for i, model in enumerate(_pool(tier)):
+        if "thinking_config" in cfg and level == "high" and model != config.MODEL_POOLS[tier][0]:
+            # Fallback models think far longer at 'high' (60k+ tokens, minutes) for little gain on
+            # pre-structured evidence; cap them at 'low' to keep latency and cost predictable.
+            cfg["thinking_config"] = types.ThinkingConfig(thinking_level="low")
         for attempt in range(3):
             try:
                 resp = client().models.generate_content(
@@ -170,9 +174,13 @@ def call(tier: str, prompt: str, *, system: str | None = None, pdf: bytes | None
 
 
 def summarize_meter(meter: list) -> dict[str, Any]:
+    """tokens/usd = spent on this run; *_build = what producing the result cost end to end
+    (cached calls included at their original price)."""
     out = {"calls": len(meter), "cached": sum(1 for m in meter if m["cached"]),
            "tokens": sum(m["in"] + m["out"] for m in meter if not m["cached"]),
-           "usd": round(sum(m["usd"] for m in meter), 4), "by_tier": {}}
+           "usd": round(sum(m["usd"] for m in meter), 4),
+           "tokens_build": sum(m["in"] + m["out"] for m in meter),
+           "usd_build": round(sum(m.get("usd_build", m["usd"]) for m in meter), 4), "by_tier": {}}
     for m in meter:
         t = out["by_tier"].setdefault(m["tier"], {"calls": 0, "model": m["model"]})
         t["calls"] += 1

@@ -3,7 +3,7 @@
 Pipeline (each step reported live to the UI):
   1. financials  -> Screener's standardised statements -> numbers.analyse()   [code, free]
   2. documents   -> last 4 concall transcripts (+ decks if no transcripts) + latest annual report
-  3. read        -> per-document structured extraction                        [lite tier, cached per doc]
+  3. read        -> transcripts: fast tier (low thinking); annual report: lite. Cached per doc.
                     (chunked: only guidance-bearing paragraphs / relevant AR pages are sent)
   4. judge       -> promises vs delivered, narrative vs numbers, bull/bear     [deep tier, one call]
 """
@@ -173,7 +173,7 @@ def _read_transcript(job: Job, c: dict, i: int, d: dict) -> dict | None:
                 meter=job.meter)
         else:
             text = _select_paragraphs(pages)
-            raw = llm.call("lite", (DECK_PROMPT if d["kind"] == "deck" else TRANSCRIPT_PROMPT).format(
+            raw = llm.call("fast", (DECK_PROMPT if d["kind"] == "deck" else TRANSCRIPT_PROMPT).format(
                 company=c["name"], symbol=c["symbol"], text=text), meter=job.meter)
         raw.update(tag=tag, url=d["url"], label=d["label"], kind=d["kind"], pages=len(pages))
         job.step(f"{raw.get('period') or d['label']} {d['kind']}: {len(raw.get('guidance', []))} guidance statements, "
@@ -308,7 +308,7 @@ def _chunks(symbol: str) -> list[dict]:
             continue
         for i, p in enumerate(pages, 1):
             if len(p) > 200:
-                out.append({"tag": tag, "label": label, "page": i, "text": p[:4000]})
+                out.append({"tag": tag, "label": label, "page": i, "text": p[:4000], "url": url})
     return out
 
 
@@ -335,7 +335,7 @@ def _bm25(query: str, docs: list[dict], k: int = 6) -> list[dict]:
 
 ASK_PROMPT = """Answer the investor's question about {company} using ONLY these excerpts from its own filings.
 Cite every claim inline like [T2 p.4] or [AR p.112]. If the excerpts don't answer it, say exactly what is missing.
-Be concise: <=120 words, numbers first.
+Be concise: <=120 words, numbers first. If you list points, put each on its own line starting with '• '.
 Question: {q}
 Excerpts:
 {ctx}
@@ -354,6 +354,7 @@ def ask(symbol: str, question: str) -> dict[str, Any]:
     ctx = "\n\n".join(f"[{h['tag']} p.{h['page']}] ({h['label']})\n{h['text'][:2500]}" for h in hits)
     meter: list = []
     out = llm.call("lite", ASK_PROMPT.format(company=res["name"], q=question, ctx=ctx), meter=meter)
-    out["sources"] = [{"tag": h["tag"], "page": h["page"], "label": h["label"]} for h in hits]
+    out["sources"] = [{"tag": h["tag"], "page": h["page"], "label": h["label"], "url": h["url"]} for h in hits]
+    out["links"] = {h["tag"]: h["url"] for h in hits}
     out["cost"] = llm.summarize_meter(meter)
     return out

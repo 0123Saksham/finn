@@ -145,6 +145,15 @@ def search(q: str = Query(..., min_length=1, max_length=40)):
     return out
 
 
+@app.post("/api/command")
+def command(payload: dict = Body(...)):
+    from .command import route
+    text = str(payload.get("text", "")).strip()[:300]
+    if not text:
+        raise HTTPException(400, "text required")
+    return route(text)
+
+
 @app.get("/api/ledger")
 def ledger():
     return {"session": llm.LEDGER, "models": llm.MODELS, "last_refresh_cost": feed.STATUS.get("last_cost")}

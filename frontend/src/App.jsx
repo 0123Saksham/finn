@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { DEFAULT_RULES, api, store } from './api'
 import Brief from './Brief'
+import Command from './Command'
 import Holdings, { CompanySheet } from './Holdings'
 import Research from './Research'
 import Rules from './Rules'
@@ -20,6 +21,8 @@ export default function App() {
   const [scrolled, setScrolled] = useState(false)
   const [health, setHealth] = useState(null)
   const [lastVisit] = useState(() => store.get('lastVisit', null))
+  const [cmd, setCmd] = useState(null)
+  const [briefWin, setBriefWin] = useState(null)
   const seen = useRef(new Set(store.get('seen', [])))
 
   useEffect(() => {
@@ -59,6 +62,14 @@ export default function App() {
     setSheet(null); setSymbol(s); setTab('ask')
   }
 
+  const act = (r) => {
+    setCmd(null)
+    if (r.intent === 'brief') { setBriefWin(r.window_hours || null); setSymbol(null); setTab('brief') }
+    else if (r.intent === 'company') { setSheet(r.symbol) }
+    else if (r.intent === 'research' || r.intent === 'ask') { setSheet(null); setSymbol(r.symbol); setTab('ask') }
+    else if (r.intent === 'rules') { setRules({ ...rules, ...r.rules }); setTab('rules') }
+  }
+
   const busy = health?.feed?.running
   return (
     <div className="app">
@@ -69,11 +80,17 @@ export default function App() {
           : <span className="live"><span className={`dot ${busy ? 'busy' : ''}`} />{health?.llm === false ? 'Numbers-only mode' : busy ? 'Checking feeds' : 'Watching 18 holdings'}</span>}
       </header>
       <main>
-        {tab === 'brief' && <Brief rules={rules} muted={muted} onMute={mute} onUnmute={unmute} lastVisit={lastVisit} onResearch={research} onAlertCount={setMatters} />}
+        {tab === 'brief' && <Brief key={`b${briefWin}`} initialWin={briefWin} rules={rules} muted={muted} onMute={mute} onUnmute={unmute} lastVisit={lastVisit} onResearch={research} onAlertCount={setMatters} />}
         {tab === 'book' && <Holdings onOpen={setSheet} />}
         {tab === 'ask' && <Research symbol={symbol} setSymbol={setSymbol} demo={demo} />}
         {tab === 'rules' && <Rules rules={rules} setRules={setRules} notify={notify} setNotify={setNotify} />}
       </main>
+      {!cmd && (
+        <button className="fab" onClick={() => setCmd('text')} aria-label="Ask FINN">
+          {Icon.spark}<span>Ask FINN</span>
+        </button>
+      )}
+      {cmd && <Command onClose={() => setCmd(null)} act={act} autoVoice={cmd === 'voice'} />}
       {sheet && <CompanySheet symbol={sheet} onClose={() => setSheet(null)} onResearch={research} />}
       <nav className="tabs">
         {TABS.map(([k, l, ic]) => (

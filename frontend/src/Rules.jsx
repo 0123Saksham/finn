@@ -6,9 +6,11 @@ export default function Rules({ rules, setRules, notify, setNotify }) {
   const [draft, setDraft] = useState(rules)
   const [pv, setPv] = useState(null)
 
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
+  useEffect(() => { if (!same(rules, draft)) setDraft(rules) }, [rules])
   useEffect(() => {
     const id = setTimeout(() => {
-      setRules(draft)
+      if (!same(rules, draft)) setRules(draft)
       api.preview({ ...draft, days: 30 }).then(setPv).catch(() => {})
     }, 250)
     return () => clearTimeout(id)

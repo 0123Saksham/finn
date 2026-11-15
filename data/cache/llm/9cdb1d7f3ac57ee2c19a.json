@@ -1,0 +1,1 @@
+{"model": "gemini-3.5-flash-lite", "usage": {"in": 245, "out": 55}, "output": {"intent": "company", "company": "TRENT", "question": null, "window_hours": null, "price_move_pct": null, "volume_multiple": null}, "at": 1794733453.361922}

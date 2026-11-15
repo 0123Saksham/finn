@@ -32,14 +32,14 @@ function script(d) {
   return parts.join(' ')
 }
 
-export default function Brief({ rules, muted, onMute, onUnmute, lastVisit, onResearch, onAlertCount }) {
-  const [win, setWin] = useState(lastVisit ? 'since' : 24)
+export default function Brief({ rules, muted, onMute, onUnmute, lastVisit, onResearch, onAlertCount, initialWin }) {
+  const [win, setWin] = useState(initialWin || (lastVisit ? 'since' : 24))
   const [d, setD] = useState(null)
   const [err, setErr] = useState(null)
   const [showRoutine, setShowRoutine] = useState(false)
   const [speaking, setSpeaking] = useState(false)
 
-  const [picked, setPicked] = useState(false)
+  const [picked, setPicked] = useState(!!initialWin)
   const [widened, setWidened] = useState(null)
 
   useEffect(() => {
@@ -156,14 +156,14 @@ export default function Brief({ rules, muted, onMute, onUnmute, lastVisit, onRes
       {d && groups.matters.length > 0 && (
         <section className="section">
           <div className="section-h"><h2><span className="pip" style={{ background: 'var(--accent)' }} />Matters</h2><span className="count">{groups.matters.length}</span></div>
-          {groups.matters.map((s) => <StoryCard key={s.id} s={s} onResearch={onResearch} />)}
+          {groups.matters.map((s) => <StoryCard key={s.id} s={s} onResearch={onResearch} isNew={lastVisit && s.ts > lastVisit} />)}
         </section>
       )}
 
       {d && groups.glance.length > 0 && (
         <section className="section">
           <div className="section-h"><h2><span className="pip" style={{ background: 'var(--glance)' }} />Worth a glance</h2><span className="count">{groups.glance.length}</span></div>
-          <div className="card">{groups.glance.map((s) => <GlanceRow key={s.id} s={s} onResearch={onResearch} onMute={onMute} />)}</div>
+          <div className="card">{groups.glance.map((s) => <GlanceRow key={s.id} s={s} onResearch={onResearch} onMute={onMute} isNew={lastVisit && s.ts > lastVisit} />)}</div>
         </section>
       )}
 

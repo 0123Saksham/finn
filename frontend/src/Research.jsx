@@ -349,7 +349,8 @@ function Dossier({ r, onRefresh }) {
         </div>
         {r.cost && (
           <div style={{ marginTop: 6 }}>
-            <b>{r.cost.calls}</b> model calls ({Object.entries(r.cost.by_tier || {}).map(([k, x]) => `${x.calls}× ${k} tier · ${x.model}${k === 'deep' ? ' + high thinking' : ''}`).join(', ')}) · <b>{n(r.cost.tokens / 1000, 0)}k</b> tokens · <b>${r.cost.usd}</b> at paid rates ($0 on free tier){r.cost.cached ? ` · ${r.cost.cached} served from cache` : ''}{r.elapsed_s ? ` · built in ${r.elapsed_s}s` : ''}
+            <b>{r.cost.calls}</b> model calls ({Object.entries(r.cost.by_tier || {}).map(([k, x]) => `${x.calls}× ${k} tier · ${x.model}`).join(', ')}) · <b>{n((r.cost.tokens_build ?? r.cost.tokens) / 1000, 0)}k</b> tokens · <b>${r.cost.usd_build ?? r.cost.usd}</b> at paid rates, $0 on the free tier{r.elapsed_s && r.cost.cached < r.cost.calls ? ` · built in ${r.elapsed_s}s` : ''}
+            {r.cost.cached > 0 && <div className="muted">{r.cost.cached} of {r.cost.calls} steps were reused from cache: documents are read once, ever.</div>}
           </div>
         )}
         {r.generated && <div className="muted" style={{ marginTop: 4 }}>Generated {r.generated}</div>}

@@ -55,7 +55,7 @@ flowchart LR
   end
   subgraph Pull["Pull: any NSE ticker, on demand"]
     N["numbers.py<br/>CAGR, margins, D/E, CFO/PAT, CCC<br/>+ auditable rule flags (no LLM)"]
-    T["4 transcripts → keep guidance-bearing paragraphs"] --> L4[[flash-lite: guidance extraction]]
+    T["4 transcripts → keep guidance-bearing paragraphs"] --> L4[[flash, low thinking: guidance extraction]]
     R["Annual report → keyword-scored 10 of ~300 pages"] --> L5[[flash-lite: business, notes, auditor]]
     N & L4 & L5 --> J[["flash + high thinking:<br/>said vs done, narrative vs numbers, bull/bear"]]
     J --> Q["Ask: BM25 over the same pages → cited answer"]
@@ -81,14 +81,14 @@ One container: FastAPI serves the API and the built PWA, and a background thread
 | Ratios, growth, cash conversion, red flags | **Plain Python** | Deterministic, testable, free. |
 
 - **Caching:** every model call is content-addressed on disk (prompt + document hash). Filings never change, so a filing is read once, ever. The repo ships the cache, so a reviewer's first open costs **zero calls**.
-- **Quota-aware model pools:** Gemini's free tier has *per-model* daily quotas (Flash is about 20 requests a day). Each tier is a pool of interchangeable models. When one model's daily quota is exhausted FINN moves along the pool, and only when the pool is dry does it degrade a tier, so the app never just fails.
+- **Quota-aware model pools:** Gemini's free tier has *per-model* daily quotas (Flash is about 20 requests a day). Each tier is a pool of interchangeable models (`gemini-3.5-flash` → `gemini-3-flash-preview` → `gemini-flash-latest`). When one model's daily quota is exhausted FINN moves along the pool, and only when the pool is dry does it degrade a tier, so the app never just fails. Fallback models get *low* thinking: at high thinking one of them spent 64k tokens and 3 minutes on a judgement the primary makes in 8k.
 
 **Measured cost** (this build, Gemini free tier):
 
 | | Calls | Tokens | Paid-tier equivalent |
 |---|---|---|---|
 | Push: classify + enrich 90 filings across 18 stocks | 34 (3 batched triage, 2 results, 12 people, 17 one-liners) | 74k | ≈ $0.01 |
-| Pull: one research dossier (4 transcripts + AR + judgement) | 6 | 50–90k | ≈ $0.01–0.05 |
+| Pull: one research dossier (4 transcripts + AR + judgement) | 6 | 45–85k | ≈ $0.02–0.03 |
 | Re-opening anything already read | 0 | 0 | $0 |
 
 Actual spend: **₹0**. Every dossier shows its own cost and which models made it ("How this was made").
