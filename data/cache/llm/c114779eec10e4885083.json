@@ -1,0 +1,1 @@
+{"model": "gemini-3.5-flash-lite", "usage": {"in": 1366, "out": 85}, "output": {"line": "Tata Steel increased its equity stake in subsidiary CPDPL from 51% to 57.5% through preference share conversion.", "amount_inr_cr": null, "amount_kind": null, "direction": "neutral", "rating_action": null, "materiality_hint": 30}, "at": 1794732534.261049}

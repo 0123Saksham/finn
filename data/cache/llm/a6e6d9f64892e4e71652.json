@@ -1,0 +1,1 @@
+{"model": "gemini-3.5-flash-lite", "usage": {"in": 1331, "out": 70}, "output": {"line": "L&T wins significant orders for residential, commercial buildings, and factories business.", "amount_inr_cr": 1750, "amount_kind": "order", "direction": "positive", "rating_action": null, "materiality_hint": 40}, "at": 1794732529.0772493}

@@ -1,0 +1,1 @@
+{"model": "gemini-3.5-flash-lite", "usage": {"in": 1439, "out": 92}, "output": {"line": "ICRA has withdrawn HAL's credit ratings for bank facilities totaling Rs. 6,050.00 crore at the company's request.", "amount_inr_cr": 6050.0, "amount_kind": "borrowing", "direction": "neutral", "rating_action": "withdrawn", "materiality_hint": 30}, "at": 1794732530.9433408}

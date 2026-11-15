@@ -1,0 +1,1 @@
+{"model": "gemini-3.5-flash-lite", "usage": {"in": 1289, "out": 79}, "output": {"line": "Bharat Electronics Limited has secured additional orders worth Rs. 909 Crores.", "amount_inr_cr": 909, "amount_kind": "order", "direction": "positive", "rating_action": null, "materiality_hint": 75}, "at": 1794732537.3837311}

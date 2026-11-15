@@ -1,0 +1,1 @@
+{"model": "gemini-3.5-flash-lite", "usage": {"in": 702, "out": 86}, "output": {"line": "S&P Global Ratings reaffirmed the 'A-' credit rating with a stable outlook for Reliance Industries' US$ fixed rate notes.", "amount_inr_cr": null, "amount_kind": null, "direction": "neutral", "rating_action": "reaffirm", "materiality_hint": 30}, "at": 1794732527.5563474}

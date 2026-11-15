@@ -1,0 +1,1 @@
+{"model": "gemini-3.5-flash-lite", "usage": {"in": 571, "out": 86}, "output": [{"line": "Trent filed the investor presentation for the standalone and consolidated unaudited financial results for Q2 FY27.", "amount_inr_cr": null, "amount_kind": null, "direction": "neutral", "rating_action": null, "materiality_hint": 20}], "at": 1794732532.010505}

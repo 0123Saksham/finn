@@ -1,0 +1,1 @@
+{"model": "gemini-3.5-flash-lite", "usage": {"in": 1319, "out": 92}, "output": {"line": "L&T secured a significant order from Noida Metro worth between Rs. 1,000 and 2,500 crore.", "amount_inr_cr": 1000, "amount_kind": "order", "direction": "positive", "rating_action": null, "materiality_hint": 70}, "at": 1794732527.5629604}
