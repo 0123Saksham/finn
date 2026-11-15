@@ -76,7 +76,8 @@ One container: FastAPI serves the API and the built PWA, and a background thread
 | Classify 90 filings | **Regex rules** (82) → flash-lite, batched (8) | Exchange subjects are semi-structured. Rules are free and auditable. |
 | Results headline numbers | **Flash** (vision if scanned) + **code** for EBITDA, QoQ, YoY | Numbers must be right; arithmetic is never delegated to a model. Verified against a second source. |
 | Bios, one-liners, sizing | **Flash-lite** | Short extraction from short documents. |
-| Transcript & annual-report extraction | **Flash-lite** on **pre-filtered text** | Bulk reading. Transcripts drop operator/disclaimer noise. The AR goes from 383 pages to the 10 that matter via keyword-scored retrieval. |
+| Transcript extraction (guidance, targets, quotes) | **Flash, low thinking** on **pre-filtered text** | The "said" half of the ledger must be exact. I tested Flash-Lite here: it mislabelled a call's quarter and missed guidance restatements, so this step earns Flash. Operator and disclaimer noise is stripped first. |
+| Annual-report extraction | **Flash-Lite** on **10 of ~300 pages** | Keyword-scored page retrieval picks the business, segment, contingent-liability, related-party and auditor pages. Lite is enough for this. |
 | Promise vs delivery judgement | **Flash + high thinking**, 1 call per company | The only step that needs multi-document reasoning. |
 | Ratios, growth, cash conversion, red flags | **Plain Python** | Deterministic, testable, free. |
 

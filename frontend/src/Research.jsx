@@ -343,9 +343,11 @@ function Dossier({ r, onRefresh }) {
       {t === 'ask' && <Ask r={r} links={links} />}
       <div className="cost">
         <div className="row between"><b style={{ fontFamily: 'var(--sans)' }}>How this was made</b><button className="link tiny" onClick={onRefresh}>Re-run</button></div>
-        <div style={{ marginTop: 6 }}>
-          Sources: {(r.docs || []).map((d) => <a key={d.tag} className="src" style={{ marginRight: 4 }} href={d.url} target="_blank" rel="noreferrer">{d.tag} {d.period || d.label}</a>)}
-          {r.ar && <a className="src" href={r.ar.url} target="_blank" rel="noreferrer">AR {r.ar.fiscal_year || ''}</a>} + exchange-reported financials.
+        <div className="row wrap" style={{ marginTop: 6, gap: 4 }}>
+          <span>Sources:</span>
+          {(r.docs || []).map((d) => <a key={d.tag} className="src" href={d.url} target="_blank" rel="noreferrer">{d.tag} {d.period || d.label}</a>)}
+          {r.ar && <a className="src" href={r.ar.url} target="_blank" rel="noreferrer">AR {r.ar.fiscal_year || ''}</a>}
+          <span>+ exchange-reported financials.</span>
         </div>
         {r.cost && (
           <div style={{ marginTop: 6 }}>
